@@ -1,4 +1,4 @@
-version ?= 0.5.0
+version ?= 0.5.1
 image_name ?= mesosphere/marathon-autoscaler
 full_image_name ?= $(image_name):v$(version)
 
