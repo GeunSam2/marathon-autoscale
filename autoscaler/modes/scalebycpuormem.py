@@ -22,8 +22,9 @@ class ScaleByCPUOrMemory(AbstractMode):
         # Instantiate the CPU/Memory mode classes
         for idx, mode in enumerate(list(self.mode_map.keys())):
             self.mode_map[mode] = self.mode_map[mode](
-                api_client,
-                app,
+                api_client=self.api_client,
+                app=self.app,
+                agent_stats=self.agent_stats,
                 dimension={
                     'min': dimension['min'][idx],
                     'max': dimension['max'][idx]
