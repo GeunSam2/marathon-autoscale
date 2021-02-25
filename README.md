@@ -1,3 +1,113 @@
+# 버그 수정 내용
+# marathon-autoscale bugfix / 2020-01-16
+
+The image version of the catalog of the marathon auto-scale service is not up to date, and the latest version of the [git-hub open source code](https://github.com/mesosphere/marathon-autoscale) for that service has bugs that do not operate in `and` and `or` modes.
+
+- [marathon-autoscale bugfix / 2020-01-16](#marathon-autoscale-bugfix---2020-01-16)
+  * [1. DCOS catalog's image version update required](#1-dcos-catalog-s-image-version-update-required)
+    + [Problem](#problem)
+    + [Solution](#solution)
+  * [2. Code modification required for  `and` , `or`  MODE](#2-code-modification-required-for---and-----or---mode)
+    + [Problem](#problem-1)
+    + [Solution](#solution-1)
+
+
+## 1. DCOS catalog's image version update required
+
+### Problem
+
+The latest version of the Marathon auto-scale service in DCOS catalog is version `0.5.0`.  However, the version does not reflect the changed url of agent statistics and does not work with the return of '500 error' from the server.
+
+> **error log**
+
+```bash
+2020-01-15 08:14:23,342 - autoscale - ERROR - HTTP Error: 500 Server Error: Internal Server Error for url: http://leader.mesos/slave/a3195c3b-8e69-4322-902b-13aa3f891e21-S2/monitor/statistics.json
+2020-01-15 08:14:23,407 - autoscale - ERROR - HTTP Error: 500 Server Error: Internal Server Error for url: http://leader.mesos/slave/a3195c3b-8e69-4322-902b-13aa3f891e21-S2/monitor/statistics.json
+2020-01-15 08:14:23,416 - autoscale - ERROR - HTTP Error: 500 Server Error: Internal Server Error for url: http://leader.mesos/slave/a3195c3b-8e69-4322-902b-13aa3f891e21-S2/monitor/statistics.json
+I0115 17:14:23.622339  1279 executor.cpp:736] Container exited with status 137
+```
+
+
+
+### Solution
+
+The above bug appears to have been solved.
+The update of the catalog version seems necessary to reflect the latest code for the services registered in catalog.
+
+
+
+---
+
+
+
+## 2. Code modification required for  `and` , `or`  MODE
+
+### Problem
+
+Apart from the previous problems, there are still problems with the latest code. According to the manual, the marathon auto-scale service must operate in a total of five modes `cpu, mem, sqs, and, or` modes. However, the current `and, or` mode is not working.
+
+> **error log**
+
+```bash
+AttributeError: 'NoneType' object has no attribute 'get_app_details'
+I0116 11:18:30.314077 10007 executor.cpp:401] Received killTask for task auto_auto-test.instance-f140cda0-3801-11ea-8aa8-e6b71f12091b._app.1
+2020-01-16 02:18:45,728 - autoscale - ERROR - 'NoneType' object has no attribute 'get_app_details'
+Traceback (most recent call last):
+  File "marathon_autoscaler.py", line 269, in run
+    direction = self.scaling_mode.scale_direction()
+  File "/marathon-autoscale/autoscaler/modes/scalebycpuormem.py", line 42, in scale_direction
+    results.append(self.mode_map[mode].scale_direction())
+  File "/marathon-autoscale/autoscaler/modes/scalecpu.py", line 46, in scale_direction
+    value = self.get_value()
+  File "/marathon-autoscale/autoscaler/modes/scalecpu.py", line 18, in get_value
+    app_task_dict = self.app.get_app_details()
+AttributeError: 'NoneType' object has no attribute 'get_app_details'
+```
+
+
+
+### Solution
+
+`autoscaler/modes/scalecpuandmem.py` and `autoscaler/modes/scalebycpuormem.py` was problem. When files call a function declared, there is an error in the part that delivers the factor.
+
+> **befor fix**
+
+autoscaler/modes/scalebycpuormem.py _(Line num : 23 ~ 31)_
+
+autoscaler/modes/scalecpuandmem.py _(Line num : 20 ~ 29)_
+
+```python
+        for idx, mode in enumerate(list(self.mode_map.keys())):
+            self.mode_map[mode] = self.mode_map[mode](
+                api_client,
+                app,
+                dimension={
+                    'min': dimension['min'][idx],
+                    'max': dimension['max'][idx]
+                }
+            )
+```
+
+> **after fix**
+
+```python
+        for idx, mode in enumerate(list(self.mode_map.keys())):
+            self.mode_map[mode] = self.mode_map[mode](
+                api_client=self.api_client,
+                app=self.app,
+                agent_stats=self.agent_stats,
+                dimension={
+                    'min': dimension['min'][idx],
+                    'max': dimension['max'][idx]
+                }
+            )
+```
+
+
+
+
+
+
 # marathon-autoscale
 Dockerized auto-scaler application that can be run under Marathon management to dynamically scale a service running on DC/OS.
 
